@@ -1,0 +1,436 @@
+// Prisma schema для корпоративного портала МЕДИПАЛ
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ПОЛЬЗОВАТЕЛИ И АУТЕНТИФИКАЦИЯ
+// ============================================
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  firstName String
+  lastName  String
+  position  String
+  department String
+  phone     String?
+  avatarUrl String?
+  birthDate DateTime?
+  hireDate  DateTime?
+  bio       String?
+  location  String?
+  telegram  String?
+
+  // Связи
+  managerId String?
+  manager   User?   @relation("ManagerSubordinates", fields: [managerId], references: [id])
+  subordinates User[] @relation("ManagerSubordinates")
+
+  skills    String[]
+
+  // Активность
+  posts           Post[]
+  livePublications LivePublication[]
+  comments        Comment[]
+  likes           Like[]
+  hearts          Heart[]
+  ideas           Idea[]
+  gratitudesSent     Gratitude[] @relation("GratitudeFrom")
+  gratitudesReceived Gratitude[] @relation("GratitudeTo")
+  bookBorrowings  BookBorrowing[]
+  achievements    Achievement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+// ============================================
+// ПОСТЫ И ПУБЛИКАЦИИ
+// ============================================
+
+enum PostType {
+  NEWS
+  LIVE
+  IDEA
+  ANNOUNCEMENT
+  ARTICLE
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Post {
+  id          String     @id @default(uuid())
+  type        PostType
+  title       String
+  content     Json       // TipTap JSONContent
+  contentHtml String     @db.Text
+  coverImageUrl String?
+  tags        String[]
+
+  authorId    String
+  author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  status      PostStatus @default(DRAFT)
+  isMain      Boolean    @default(false)
+  isPinned    Boolean    @default(false)
+
+  publishedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Связи
+  comments    Comment[]
+  likes       Like[]
+  views       PostView[]
+
+  @@map("posts")
+  @@index([type, status, publishedAt])
+  @@index([authorId])
+}
+
+// ============================================
+// LIVE ПУБЛИКАЦИИ
+// ============================================
+
+enum LiveCategory {
+  ALL
+  CORPORATE
+  SPORT
+  CREATIVE
+  VOLUNTEER
+  EVENTS
+}
+
+model LivePublication {
+  id          String        @id @default(uuid())
+  title       String
+  description String        @db.Text
+  imageUrl    String?
+  category    LiveCategory  @default(ALL)
+  tags        String[]
+  isPinned    Boolean       @default(false)
+
+  authorId    String
+  author      User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  publishedAt DateTime      @default(now())
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Связи
+  comments    Comment[]
+  likes       Like[]
+  hearts      Heart[]
+  views       LiveView[]
+
+  @@map("live_publications")
+  @@index([category, publishedAt])
+  @@index([authorId])
+}
+
+// ============================================
+// КОММЕНТАРИИ И РЕАКЦИИ
+// ============================================
+
+enum CommentableType {
+  POST
+  LIVE_PUBLICATION
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String   @db.Text
+
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  // Polymorphic relation
+  postId            String?
+  post              Post?            @relation(fields: [postId], references: [id], onDelete: Cascade)
+  livePublicationId String?
+  livePublication   LivePublication? @relation(fields: [livePublicationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("comments")
+  @@index([postId])
+  @@index([livePublicationId])
+  @@index([authorId])
+}
+
+model Like {
+  id        String   @id @default(uuid())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  postId            String?
+  post              Post?            @relation(fields: [postId], references: [id], onDelete: Cascade)
+  livePublicationId String?
+  livePublication   LivePublication? @relation(fields: [livePublicationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@unique([userId, livePublicationId])
+  @@map("likes")
+  @@index([postId])
+  @@index([livePublicationId])
+}
+
+model Heart {
+  id                String          @id @default(uuid())
+
+  userId            String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  livePublicationId String
+  livePublication   LivePublication @relation(fields: [livePublicationId], references: [id], onDelete: Cascade)
+
+  createdAt         DateTime        @default(now())
+
+  @@unique([userId, livePublicationId])
+  @@map("hearts")
+  @@index([livePublicationId])
+}
+
+model PostView {
+  id        String   @id @default(uuid())
+
+  userId    String
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  viewedAt  DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@map("post_views")
+  @@index([postId])
+}
+
+model LiveView {
+  id                String          @id @default(uuid())
+
+  userId            String
+  livePublicationId String
+  livePublication   LivePublication @relation(fields: [livePublicationId], references: [id], onDelete: Cascade)
+
+  viewedAt          DateTime        @default(now())
+
+  @@unique([userId, livePublicationId])
+  @@map("live_views")
+  @@index([livePublicationId])
+}
+
+// ============================================
+// ВАКАНСИИ
+// ============================================
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+}
+
+model Vacancy {
+  id              String          @id @default(uuid())
+  title           String
+  department      String?
+  location        String?
+  description     String?         @db.Text
+  responsibilities String[]
+  requirements    String[]
+  conditions      String[]
+  employmentType  EmploymentType?
+  experience      String?
+  isHot           Boolean         @default(false)
+  hhUrl           String?
+
+  publishedAt     DateTime        @default(now())
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@map("vacancies")
+  @@index([publishedAt])
+}
+
+// ============================================
+// БИБЛИОТЕКА
+// ============================================
+
+enum BookCategory {
+  BUSINESS
+  MANAGEMENT
+  SELF_DEVELOPMENT
+  IT
+  FINANCE
+  PSYCHOLOGY
+  FICTION
+}
+
+enum BookStatus {
+  AVAILABLE
+  BORROWED
+  RESERVED
+}
+
+model Book {
+  id           String        @id @default(uuid())
+  title        String
+  author       String
+  description  String        @db.Text
+  coverUrl     String?
+  category     BookCategory
+  pageCount    Int
+  year         Int
+  tags         String[]
+  isFeatured   Boolean       @default(false)
+  isNew        Boolean       @default(false)
+
+  status       BookStatus    @default(AVAILABLE)
+
+  borrowings   BookBorrowing[]
+  reviews      BookReview[]
+
+  addedAt      DateTime      @default(now())
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@map("books")
+  @@index([category])
+  @@index([status])
+}
+
+model BookBorrowing {
+  id         String    @id @default(uuid())
+
+  bookId     String
+  book       Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  borrowedAt DateTime  @default(now())
+  returnDate DateTime?
+  returnedAt DateTime?
+
+  @@map("book_borrowings")
+  @@index([bookId])
+  @@index([userId])
+}
+
+model BookReview {
+  id        String   @id @default(uuid())
+
+  bookId    String
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  rating    Int      // 1-5
+  comment   String?  @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@map("book_reviews")
+  @@index([bookId])
+}
+
+// ============================================
+// БАНК ИДЕЙ
+// ============================================
+
+enum IdeaStatus {
+  NEW
+  REVIEW
+  APPROVED
+  REJECTED
+  IMPLEMENTED
+}
+
+model Idea {
+  id          String     @id @default(uuid())
+  title       String
+  description String     @db.Text
+  status      IdeaStatus @default(NEW)
+
+  authorId    String
+  author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  votes       IdeaVote[]
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@map("ideas")
+  @@index([status])
+  @@index([authorId])
+}
+
+model IdeaVote {
+  id        String   @id @default(uuid())
+
+  ideaId    String
+  idea      Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+
+  userId    String
+
+  createdAt DateTime @default(now())
+
+  @@unique([ideaId, userId])
+  @@map("idea_votes")
+  @@index([ideaId])
+}
+
+// ============================================
+// БЛАГОДАРНОСТИ
+// ============================================
+
+model Gratitude {
+  id        String   @id @default(uuid())
+  message   String   @db.Text
+
+  fromId    String
+  from      User     @relation("GratitudeFrom", fields: [fromId], references: [id], onDelete: Cascade)
+
+  toId      String
+  to        User     @relation("GratitudeTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@map("gratitudes")
+  @@index([fromId])
+  @@index([toId])
+}
+
+// ============================================
+// ДОСТИЖЕНИЯ
+// ============================================
+
+model Achievement {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  iconUrl     String?
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  earnedAt    DateTime @default(now())
+
+  @@map("achievements")
+  @@index([userId])
+}
