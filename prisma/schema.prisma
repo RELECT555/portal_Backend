@@ -5,8 +5,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ============================================
@@ -46,6 +47,7 @@ model User {
   gratitudesReceived Gratitude[] @relation("GratitudeTo")
   bookBorrowings  BookBorrowing[]
   achievements    Achievement[]
+  moodEntries     MoodEntry[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -361,14 +363,24 @@ enum IdeaStatus {
   IMPLEMENTED
 }
 
+enum IdeaCategory {
+  PROCESS
+  PRODUCT
+  CULTURE
+  TECH
+  OTHER
+}
+
 model Idea {
-  id          String     @id @default(uuid())
+  id          String       @id @default(uuid())
   title       String
-  description String     @db.Text
-  status      IdeaStatus @default(NEW)
+  description String       @db.Text
+  status      IdeaStatus   @default(NEW)
+  category    IdeaCategory @default(OTHER)
+  tags        String[]     @default([])
 
   authorId    String
-  author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author      User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   votes       IdeaVote[]
 
@@ -378,6 +390,7 @@ model Idea {
   @@map("ideas")
   @@index([status])
   @@index([authorId])
+  @@index([category])
 }
 
 model IdeaVote {
@@ -414,6 +427,36 @@ model Gratitude {
   @@map("gratitudes")
   @@index([fromId])
   @@index([toId])
+}
+
+// ============================================
+// ДНЕВНИК НАСТРОЕНИЯ (MOOD PORTAL)
+// ============================================
+
+enum MoodValue {
+  GREAT
+  GOOD
+  OKAY
+  BAD
+  AWFUL
+}
+
+model MoodEntry {
+  id        String    @id @default(uuid())
+  mood      MoodValue
+  note      String?   @db.Text
+  tags      String[]  @default([])
+
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  recordedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("mood_entries")
+  @@index([userId, recordedAt])
+  @@index([userId])
 }
 
 // ============================================

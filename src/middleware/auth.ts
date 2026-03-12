@@ -14,6 +14,14 @@ declare global {
   }
 }
 
+function setDevUser(req: Request) {
+  req.user = {
+    id: 'dev-user-id',
+    email: 'dev@medipal.ru',
+    name: 'Dev User',
+  };
+}
+
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
@@ -27,16 +35,28 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     // TODO: Implement Azure AD token validation
     // Временно для разработки - пропускаем любой токен
     if (process.env.NODE_ENV === 'development') {
-      req.user = {
-        id: 'dev-user-id',
-        email: 'dev@medipal.ru',
-        name: 'Dev User',
-      };
+      setDevUser(req);
       return next();
     }
 
     // В production здесь будет валидация токена через Azure AD
     throw new AppError('Token validation not implemented', 501);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** Ставит req.user, если передан токен; не требует авторизации */
+export const optionalAuth = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return next();
+    }
+    if (process.env.NODE_ENV === 'development') {
+      setDevUser(req);
+    }
+    next();
   } catch (error) {
     next(error);
   }

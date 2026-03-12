@@ -8,6 +8,7 @@ import libraryRouter from './library';
 import ideasRouter from './ideas';
 import gratitudeRouter from './gratitude';
 import teamRouter from './team';
+import moodRouter from './mood';
 
 const router = Router();
 
@@ -21,5 +22,6 @@ router.use('/library', libraryRouter);
 router.use('/ideas', ideasRouter);
 router.use('/gratitude', gratitudeRouter);
 router.use('/team', teamRouter);
+router.use('/mood', moodRouter);
 
 export default router;
